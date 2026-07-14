@@ -1,0 +1,43 @@
+log_file: C:\inetpub\logs\LogFiles\W3SVC1\u_ex*.log
+log_format: json
+ip_header: y
+llm_enabled: true
+llm_model_path: e
+whitelist_ips:
+- 192.168.1.8
+- ::1
+- e
+- 127.0.0.1
+firewall_backend: mock
+dashboard_enabled: true
+dashboard_port: 8080
+dashboard_host: 127.0.0.1
+db_path: snoop.db
+pid_file: snoop.pid
+snoop_log_file: logs/snoop.log
+log_level: INFO
+queue_maxsize: 10000
+anomaly_threshold: 0.85
+ban_duration_seconds: 3600
+cooldown_seconds: 60
+heuristic_patterns:
+- name: SQL Injection
+  regex: (?i)(union\s+select|select\s+.*\s+from|insert\s+into\s+.*\s+values|update\s+.*\s+set|delete\s+from|drop\s+table|;\s*--)
+- name: Cross-Site Scripting
+  regex: (?i)(<script.*?>.*?</script>|javascript:|onerror\s*=|onload\s*=)
+- name: Path Traversal
+  regex: (?i)(\.\./\.\./|\.\.\\\.\.\\|%2e%2e%2f|%2e%2e/|\.\.%2f|%2e%2e%5c)
+- name: Command Injection
+  regex: (?i)(;\s*(ls|cat|id|whoami|pwd|wget|curl|nc|bash|sh|cmd|powershell))
+- name: Remote File Inclusion
+  regex: (?i)(http(s)?://.*\.(txt|php|txt\?|php\?))
+- name: Local File Inclusion
+  regex: (?i)(/etc/passwd|/etc/shadow|/etc/hosts|c:\\windows\\system32|c:\\boot\.ini)
+- name: Malicious User Agent
+  regex: (?i)(nikto|sqlmap|nmap|dirb|dirbuster|wpscan|masscan|zgrab)
+- name: Suspicious Request Method
+  regex: (?i)(PUT|DELETE|TRACE|TRACK|CONNECT)
+- name: Known Exploit Payload
+  regex: (?i)(jndi:ldap|jndi:rmi|\$\{jndi:)
+- name: PHP Code Injection
+  regex: (?i)(<\?php|eval\(|base64_decode\(|system\(|exec\()

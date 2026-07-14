@@ -1,0 +1,8 @@
+snoop.db
+snoop.log
+snoop.pid
+__pycache__/
+*.pyc
+.venv/
+models/*.gguf
+data/if_model.joblib
