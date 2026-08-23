@@ -19,6 +19,7 @@ venv/
 *.db-shm
 *.db-wal
 *.log
+!examples/*.log
 *.pid
 logs/
 

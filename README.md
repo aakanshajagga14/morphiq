@@ -71,7 +71,7 @@ python -m pip install -e .
 
 ### Configure
 
-The committed [`config.yaml`](config.yaml) is a safe demo configuration. It reads `demo_access.log`, disables the LLM, and uses the mock firewall backend.
+The committed [`config.yaml`](config.yaml) is a safe demo configuration. It reads [`examples/sample_access.log`](examples/sample_access.log), disables the LLM, and uses the mock firewall backend.
 
 You can also launch the setup wizard:
 

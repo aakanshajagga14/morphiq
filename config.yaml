@@ -1,5 +1,5 @@
 # Safe local/demo configuration. Replace log_file_path before production use.
-log_file_path: demo_access.log
+log_file_path: examples/sample_access.log
 log_format_preset: nginx_combined
 log_format_regex: ""
 effective_ip_header: X-Forwarded-For

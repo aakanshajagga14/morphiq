@@ -1,0 +1,3 @@
+# Local LLM weights are not distributed with the repository.
+*
+!.gitignore
