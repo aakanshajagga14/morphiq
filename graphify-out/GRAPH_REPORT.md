@@ -1,4 +1,4 @@
-# Graph Report - C:\Users\Dell\ANTIGRAVITY_CODE\Snoop  (2026-06-21)
+# Graph Report - C:\Users\Dell\ANTIGRAVITY_CODE\MorphIQ  (2026-06-21)
 
 ## Corpus Check
 - 27 files · ~12,065 words
@@ -46,15 +46,15 @@
 
 ## Surprising Connections (you probably didn't know these)
 - `Loads, merges, and validates configuration from a YAML file.      Merge preceden` --uses--> `PatternRule`  [INFERRED]
-  C:\Users\Dell\ANTIGRAVITY_CODE\Snoop\snoop\config.py → C:\Users\Dell\ANTIGRAVITY_CODE\Snoop\snoop\models.py
+  C:\Users\Dell\ANTIGRAVITY_CODE\MorphIQ\morphiq\config.py → C:\Users\Dell\ANTIGRAVITY_CODE\MorphIQ\morphiq\models.py
 - `Load and validate configuration.      Resolution order for the config file path:` --uses--> `PatternRule`  [INFERRED]
-  C:\Users\Dell\ANTIGRAVITY_CODE\Snoop\snoop\config.py → C:\Users\Dell\ANTIGRAVITY_CODE\Snoop\snoop\models.py
+  C:\Users\Dell\ANTIGRAVITY_CODE\MorphIQ\morphiq\config.py → C:\Users\Dell\ANTIGRAVITY_CODE\MorphIQ\morphiq\models.py
 - `JsonFormatter` --uses--> `Config`  [INFERRED]
-  C:\Users\Dell\ANTIGRAVITY_CODE\Snoop\snoop\daemon.py → C:\Users\Dell\ANTIGRAVITY_CODE\Snoop\snoop\config.py
+  C:\Users\Dell\ANTIGRAVITY_CODE\MorphIQ\morphiq\daemon.py → C:\Users\Dell\ANTIGRAVITY_CODE\MorphIQ\morphiq\config.py
 - `Daemon` --uses--> `Config`  [INFERRED]
-  C:\Users\Dell\ANTIGRAVITY_CODE\Snoop\snoop\daemon.py → C:\Users\Dell\ANTIGRAVITY_CODE\Snoop\snoop\config.py
+  C:\Users\Dell\ANTIGRAVITY_CODE\MorphIQ\morphiq\daemon.py → C:\Users\Dell\ANTIGRAVITY_CODE\MorphIQ\morphiq\config.py
 - `LLMClient` --uses--> `Config`  [INFERRED]
-  C:\Users\Dell\ANTIGRAVITY_CODE\Snoop\snoop\llm_client.py → C:\Users\Dell\ANTIGRAVITY_CODE\Snoop\snoop\config.py
+  C:\Users\Dell\ANTIGRAVITY_CODE\MorphIQ\morphiq\llm_client.py → C:\Users\Dell\ANTIGRAVITY_CODE\MorphIQ\morphiq\config.py
 
 ## Communities
 
@@ -100,7 +100,7 @@ Nodes (5): handle_attack(), handle_home(), handle_login(), Writes a line to the 
 
 ### Community 10 - "Community 10"
 Cohesion: 1.0
-Nodes (1): Allow running as: python -m snoop
+Nodes (1): Allow running as: python -m morphiq
 
 ### Community 11 - "Community 11"
 Cohesion: 1.0
@@ -145,7 +145,7 @@ Nodes (0):
 ## Knowledge Gaps
 - **17 isolated node(s):** `Writes a line to the access log in Nginx format.`, `Read *path* (YAML), merge with defaults, validate, and return a         fully-po`, `Validate *raw* dict and return a Config instance.          Raises ConfigValidati`, `A single parsed HTTP access-log line.`, `A compiled regex rule used by the heuristic filter.` (+12 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **Thin community `Community 10`** (2 nodes): `__main__.py`, `Allow running as: python -m snoop`
+- **Thin community `Community 10`** (2 nodes): `__main__.py`, `Allow running as: python -m morphiq`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 11`** (1 nodes): `__init__.py`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.

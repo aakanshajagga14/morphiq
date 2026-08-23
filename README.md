@@ -1,8 +1,8 @@
-# Snoop IPS
+# MorphIQ IPS
 
-**Snoop IPS** is an AI-powered Intrusion Prevention System (IPS) that acts as a highly intelligent firewall and threat detection engine. It monitors web server logs in real-time to detect, analyze, and automatically block malicious traffic.
+**MorphIQ IPS** is an AI-powered Intrusion Prevention System (IPS) that acts as a highly intelligent firewall and threat detection engine. It monitors web server logs in real-time to detect, analyze, and automatically block malicious traffic.
 
-Instead of relying solely on static rules like traditional tools, Snoop combines heuristic pattern matching with Machine Learning (Anomaly Detection) and Local Large Language Models (LLMs) to make context-aware security decisions.
+Instead of relying solely on static rules like traditional tools, MorphIQ combines heuristic pattern matching with Machine Learning (Anomaly Detection) and Local Large Language Models (LLMs) to make context-aware security decisions.
 
 ## 🌟 Key Features
 
@@ -18,8 +18,8 @@ Instead of relying solely on static rules like traditional tools, Snoop combines
 
 ## 🏗 Architecture
 
-Snoop is composed of two main components:
-1. **The Daemon (`snoop start`)**: A background process that tails logs, processes requests through the 3-stage detection pipeline, queries the local LLM, manages the SQLite database (`snoop.db`), and issues firewall blocks.
+MorphIQ is composed of two main components:
+1. **The Daemon (`morphiq start`)**: A background process that tails logs, processes requests through the 3-stage detection pipeline, queries the local LLM, manages the SQLite database (`morphiq.db`), and issues firewall blocks.
 2. **The Dashboard**: A web interface served by an `aiohttp` server running on port 3000, providing real-time insights into the IPS's operations.
 
 ## 🚀 Getting Started
@@ -37,16 +37,16 @@ Key configurations to check:
 * `llm_base_url`: URL of your local LLM server (default is `http://localhost:1234/v1` for LM Studio).
 * `dashboard_port`: Port for the web dashboard (default 3000).
 
-### Running Snoop
+### Running MorphIQ
 
-Snoop includes a CLI tool to manage the daemon process.
+MorphIQ includes a CLI tool to manage the daemon process.
 
 ```bash
-# Start the Snoop daemon and dashboard in the background
-snoop start
+# Start the MorphIQ daemon and dashboard in the background
+morphiq start
 
-# Stop the running Snoop daemon
-snoop stop
+# Stop the running MorphIQ daemon
+morphiq stop
 ```
 
 Once started, the dashboard will be available at: **http://127.0.0.1:3000**
@@ -57,12 +57,12 @@ If you want to use the AI analysis feature:
 2. Load a fast, instruct-tuned model (e.g., Gemma 2B or Llama 3 8B).
 3. Start the Local Server on port `1234`.
 4. Ensure `llm_enabled: true` in your `config.yaml`.
-5. Run `snoop start`.
+5. Run `morphiq start`.
 
 *Note: If you experience crashes with specific models (like Gemma 4) in LM Studio, try reducing `Parallel Requests` to `1` and lowering the `Context Length` to `4096`, or switch to a more stable model.*
 
 ## 🧪 Demo Mode
-To test Snoop without a real web server, you can point `log_file_path` to `demo_access.log` and use a script to append simulated malicious and benign requests to the log file. Snoop will immediately pick them up and analyze them on the dashboard!
+To test MorphIQ without a real web server, you can point `log_file_path` to `demo_access.log` and use a script to append simulated malicious and benign requests to the log file. MorphIQ will immediately pick them up and analyze them on the dashboard!
 
 ## License
 

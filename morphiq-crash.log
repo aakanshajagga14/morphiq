@@ -1,0 +1,4 @@
+INFO:root:MorphIQ IPS Daemon starting
+INFO:root:MorphIQ IPS Daemon starting
+INFO:morphiq.dashboard.server:Dashboard server started at http://127.0.0.1:3000
+INFO:morphiq.dashboard.server:Dashboard server started at http://127.0.0.1:3000

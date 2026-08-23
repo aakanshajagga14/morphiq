@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MorphIQ IPS Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0a0e1a;
+            --bg-light: #0d1117;
+            --accent-blue: #00d4ff;
+            --danger-red: #ff3366;
+            --success-green: #00ff88;
+            --warning-yellow: #ffcc00;
+            --text-primary: #e2e8f0;
+            --text-muted: #64748b;
+            --glass-bg: rgba(255, 255, 255, 0.04);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --card-radius: 16px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top, var(--bg-dark), var(--bg-light));
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 2rem;
+            line-height: 1.5;
+            background-attachment: fixed;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            gap: 1.5rem;
+            grid-template-columns: 2fr 1fr;
+        }
+
+        /* Glassmorphism utility */
+        .glass {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--card-radius);
+            padding: 1.5rem;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .glass:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Typography */
+        h1, h2, h3 { font-weight: 600; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+
+        /* Header */
+        .header {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            background: rgba(10, 14, 26, 0.6);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--glass-border);
+            border-radius: var(--card-radius);
+            margin-bottom: 1rem;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .header-title {
+            color: var(--accent-blue);
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .uptime {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-left: 1rem;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            padding: 0.4rem 1rem;
+            border-radius: 999px;
+            background: rgba(0, 255, 136, 0.1);
+            color: var(--success-green);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+        }
+
+        .status-badge.offline {
+            background: rgba(255, 51, 102, 0.1);
+            color: var(--danger-red);
+            border-color: rgba(255, 51, 102, 0.2);
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            background: currentColor;
+            border-radius: 50%;
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(0, 255, 136, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 255, 136, 0); }
+        }
+
+        .status-badge.offline .pulse {
+            animation: pulse-red 2s infinite;
+        }
+
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(255, 51, 102, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(255, 51, 102, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 51, 102, 0); }
+        }
+
+        /* Stats Row */
+        .stats-row {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+        }
+
+        .stat-card {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            line-height: 1.1;
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .stat-card::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+        }
+
+        .stat-parsed::after { background: var(--accent-blue); }
+        .stat-escalated::after { background: var(--warning-yellow); }
+        .stat-blocked::after { background: var(--danger-red); }
+        .stat-blocked .stat-value { color: var(--danger-red); }
+        .stat-allowed::after { background: var(--success-green); }
+        .stat-allowed .stat-value { color: var(--success-green); }
+
+        /* Panels */
+        .panel-title {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Feed */
+        .feed-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            max-height: 500px;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+        .feed-item {
+            display: grid;
+            grid-template-columns: auto 1fr 150px auto;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.75rem 1rem;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .feed-time {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .confidence-wrapper {
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+            position: relative;
+            width: 100%;
+        }
+
+        .confidence-bar {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+
+        .pill {
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .pill-block {
+            background: rgba(255, 51, 102, 0.15);
+            color: var(--danger-red);
+            border: 1px solid rgba(255, 51, 102, 0.3);
+        }
+
+        .pill-allow {
+            background: rgba(0, 255, 136, 0.15);
+            color: var(--success-green);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+        }
+
+        /* Bans */
+        .bans-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            max-height: 500px;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+
+        .ban-item {
+            background: rgba(255, 51, 102, 0.05);
+            border: 1px solid rgba(255, 51, 102, 0.2);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .ban-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .ban-ip {
+            color: var(--danger-red);
+            font-weight: 600;
+        }
+
+        .ban-reason {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .ban-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 0.25rem;
+        }
+
+        .countdown {
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        .countdown.urgent {
+            color: var(--danger-red);
+            animation: pulse-text 1s infinite;
+        }
+
+        @keyframes pulse-text {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .btn {
+            background: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--glass-border);
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-unban {
+            border-color: rgba(255, 51, 102, 0.5);
+            color: var(--danger-red);
+        }
+
+        .btn-unban:hover {
+            background: rgba(255, 51, 102, 0.1);
+        }
+
+        /* Audit Table */
+        .audit-panel {
+            grid-column: 1 / -1;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 4px;
+            margin-top: 1rem;
+        }
+
+        th {
+            text-align: left;
+            padding: 0.75rem 1rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 0.9rem;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        td {
+            padding: 0.75rem 1rem;
+            font-size: 0.9rem;
+            background: rgba(255, 255, 255, 0.02);
+            transition: background 0.2s;
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        tr td:first-child { border-radius: 8px 0 0 8px; }
+        tr td:last-child { border-radius: 0 8px 8px 0; }
+
+        .row-block td { background: linear-gradient(90deg, rgba(255, 51, 102, 0.05), transparent); }
+        .row-allow td { background: linear-gradient(90deg, rgba(0, 255, 136, 0.05), transparent); }
+
+        .reasoning-cell {
+            max-width: 300px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            position: relative;
+            cursor: help;
+        }
+
+        /* Tooltip */
+        [data-tooltip]:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e293b;
+            color: #f8fafc;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            white-space: normal;
+            width: max-content;
+            max-width: 400px;
+            z-index: 10;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .empty-state {
+            color: var(--text-muted);
+            text-align: center;
+            padding: 2rem;
+            font-style: italic;
+        }
+
+        /* Animations */
+        .slide-in {
+            animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-in forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+    </style>
+</head>
+<body class="fade-in">
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <span style="font-size: 1.8rem;">🛡️</span>
+                <span class="header-title">MORPHIQ IPS</span>
+                <span class="uptime" id="uptimeCounter">Uptime: 00:00:00</span>
+            </div>
+            <div class="status-badge" id="statusBadge">
+                <div class="dot pulse"></div>
+                <span id="statusText">CONNECTING...</span>
+            </div>
+        </header>
+
+        <!-- Stats Row -->
+        <div class="stats-row">
+            <div class="glass stat-card stat-parsed">
+                <div class="stat-label">🔍 Total Parsed</div>
+                <div class="stat-value" id="valParsed">0</div>
+            </div>
+            <div class="glass stat-card stat-escalated">
+                <div class="stat-label">⚡ ML Escalated</div>
+                <div class="stat-value" id="valEscalated">0</div>
+            </div>
+            <div class="glass stat-card stat-blocked">
+                <div class="stat-label">🛡️ Blocked</div>
+                <div class="stat-value" id="valBlocked">0</div>
+            </div>
+            <div class="glass stat-card stat-allowed">
+                <div class="stat-label">✅ Allowed</div>
+                <div class="stat-value" id="valAllowed">0</div>
+            </div>
+        </div>
+
+        <!-- Live Feed -->
+        <div class="glass feed-panel">
+            <h2 class="panel-title">⚡ Live Threat Feed</h2>
+            <div class="feed-container" id="feedContainer">
+                <div class="empty-state">No threats detected</div>
+            </div>
+        </div>
+
+        <!-- Active Bans -->
+        <div class="glass bans-panel">
+            <h2 class="panel-title">🔒 Active Bans (<span id="banCount">0</span>)</h2>
+            <div class="bans-container" id="bansContainer">
+                <div class="empty-state">No active bans 🎉</div>
+            </div>
+        </div>
+
+        <!-- Audit Log -->
+        <div class="glass audit-panel">
+            <h2 class="panel-title">📄 Audit Log</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>IP Address</th>
+                        <th>Threat Label</th>
+                        <th>Confidence</th>
+                        <th>Action</th>
+                        <th>Reasoning</th>
+                    </tr>
+                </thead>
+                <tbody id="auditTableBody">
+                    <!-- Rows rendered here -->
+                </tbody>
+            </table>
+            <div class="pagination">
+                <button class="btn" id="btnPrev" onclick="changePage(-1)">Prev</button>
+                <button class="btn" id="btnNext" onclick="changePage(1)">Next</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let stats = { parsed: 0, escalated: 0, blocked: 0, allowed: 0 };
+        let bans = [];
+        let auditData = [];
+        let currentPage = 0;
+        const PAGE_SIZE = 20;
+        let sseSource = null;
+        let startTime = Date.now(); // Fallback uptime start
+
+        // DOM Elements
+        const elParsed = document.getElementById('valParsed');
+        const elEscalated = document.getElementById('valEscalated');
+        const elBlocked = document.getElementById('valBlocked');
+        const elAllowed = document.getElementById('valAllowed');
+        const elStatusBadge = document.getElementById('statusBadge');
+        const elStatusText = document.getElementById('statusText');
+        const elUptime = document.getElementById('uptimeCounter');
+        
+        // Init
+        document.addEventListener('DOMContentLoaded', () => {
+            connectSSE();
+            loadAll();
+            setInterval(loadAll, 10000); // Polling fallback/sync
+            setInterval(updateCountdowns, 1000);
+            setInterval(updateUptime, 1000);
+        });
+
+        // SSE
+        function connectSSE() {
+            if (sseSource) sseSource.close();
+            sseSource = new EventSource('/api/stream');
+            
+            sseSource.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                if (data.stats) updateStatsDisplay(data.stats);
+                if (data.new_audits && data.new_audits.length) {
+                    prependToFeed(data.new_audits);
+                    // Also refresh audit table locally
+                    data.new_audits.forEach(a => {
+                        if(!auditData.find(ex => ex.id === a.id)) {
+                            auditData.unshift(a);
+                        }
+                    });
+                    renderAuditTable();
+                }
+            };
+            
+            sseSource.onerror = () => {
+                setOnlineStatus(false);
+                setTimeout(connectSSE, 5000);
+            };
+
+            sseSource.onopen = () => setOnlineStatus(true);
+        }
+
+        async function loadAll() {
+            await Promise.all([loadStatus(), loadBans(), loadAudit()]);
+        }
+
+        async function loadStatus() {
+            try {
+                const res = await fetch('/api/status');
+                if(!res.ok) throw new Error();
+                const data = await res.json();
+                setOnlineStatus(data.daemon_alive);
+                updateStatsDisplay(data.stats);
+                document.getElementById('banCount').textContent = data.active_bans_count || bans.length;
+            } catch (e) {
+                setOnlineStatus(false);
+            }
+        }
+
+        async function loadBans() {
+            try {
+                const res = await fetch('/api/bans');
+                if(!res.ok) throw new Error();
+                bans = await res.json();
+                document.getElementById('banCount').textContent = bans.length;
+                renderBans();
+            } catch (e) {
+                console.error("Failed to load bans");
+            }
+        }
+
+        async function loadAudit() {
+            try {
+                const res = await fetch('/api/audit?limit=100');
+                if(!res.ok) throw new Error();
+                auditData = await res.json();
+                renderAuditTable();
+                if(auditData.length) {
+                    // Populate initial feed with last 10
+                    renderFeed(auditData.slice(0, 10));
+                }
+            } catch (e) {
+                console.error("Failed to load audit");
+            }
+        }
+
+        function setOnlineStatus(isOnline) {
+            if (isOnline) {
+                elStatusBadge.className = 'status-badge';
+                elStatusText.textContent = 'ONLINE';
+            } else {
+                elStatusBadge.className = 'status-badge offline';
+                elStatusText.textContent = 'OFFLINE';
+            }
+        }
+
+        // Animation
+        function animateCounter(el, from, to) {
+            if (from === to) return;
+            const duration = 500;
+            const start = performance.now();
+            
+            const step = (now) => {
+                const progress = Math.min((now - start) / duration, 1);
+                // Easing out
+                const easeOut = 1 - Math.pow(1 - progress, 3);
+                const current = Math.floor(from + (to - from) * easeOut);
+                el.textContent = current.toLocaleString();
+                
+                if (progress < 1) {
+                    requestAnimationFrame(step);
+                } else {
+                    el.textContent = to.toLocaleString();
+                }
+            };
+            requestAnimationFrame(step);
+        }
+
+        function updateStatsDisplay(newStats) {
+            if (!newStats) return;
+            const parsed = newStats.total_requests || 0;
+            const escalated = newStats.ml_escalated || 0;
+            const blocked = newStats.total_blocked || 0;
+            const allowed = parsed - blocked; // rough approx
+
+            animateCounter(elParsed, stats.parsed, parsed);
+            animateCounter(elEscalated, stats.escalated, escalated);
+            animateCounter(elBlocked, stats.blocked, blocked);
+            animateCounter(elAllowed, stats.allowed, allowed);
+
+            stats = { parsed, escalated, blocked, allowed };
+        }
+
+        // Render Helpers
+        function getConfidenceColor(conf) {
+            // 0 -> green (#00ff88), 0.5 -> yellow (#ffcc00), 1.0 -> red (#ff3366)
+            if (conf < 0.3) return '#00ff88';
+            if (conf < 0.7) return '#ffcc00';
+            return '#ff3366';
+        }
+
+        function formatTime(isoStr) {
+            if(!isoStr) return '';
+            const d = new Date(isoStr);
+            return d.toLocaleTimeString([], {hour12: false});
+        }
+
+        function createFeedElement(item) {
+            const el = document.createElement('div');
+            el.className = 'feed-item slide-in';
+            const action = (item.action || 'ALLOW').toUpperCase();
+            const pillClass = action === 'BLOCK' ? 'pill-block' : 'pill-allow';
+            const conf = item.confidence || 0.0;
+            const color = getConfidenceColor(conf);
+            
+            el.innerHTML = `
+                <div class="feed-time">${formatTime(item.timestamp)}</div>
+                <div class="mono">${item.ip}</div>
+                <div class="confidence-wrapper">
+                    <div class="confidence-bar" style="width: ${Math.max(5, conf * 100)}%; background: ${color}"></div>
+                </div>
+                <div class="pill ${pillClass}">${action}</div>
+            `;
+            return el;
+        }
+
+        function prependToFeed(newItems) {
+            const container = document.getElementById('feedContainer');
+            const empty = container.querySelector('.empty-state');
+            if (empty) empty.remove();
+
+            // Reverse to prepend oldest first if array is time-desc
+            [...newItems].reverse().forEach(item => {
+                const el = createFeedElement(item);
+                container.insertBefore(el, container.firstChild);
+            });
+
+            // keep only 10
+            while (container.children.length > 10) {
+                container.removeChild(container.lastChild);
+            }
+        }
+
+        function renderFeed(items) {
+            const container = document.getElementById('feedContainer');
+            if (!items || !items.length) return;
+            container.innerHTML = '';
+            items.slice(0, 10).forEach(item => {
+                container.appendChild(createFeedElement(item));
+            });
+        }
+
+        function renderBans() {
+            const container = document.getElementById('bansContainer');
+            if (!bans || !bans.length) {
+                container.innerHTML = '<div class="empty-state">No active bans 🎉</div>';
+                return;
+            }
+            container.innerHTML = '';
+            bans.forEach(ban => {
+                const el = document.createElement('div');
+                el.className = 'ban-item';
+                // Attach exp time to dataset for countdown loop
+                el.dataset.expiresAt = ban.expires_at;
+                
+                el.innerHTML = `
+                    <div class="ban-header">
+                        <span class="mono ban-ip">${ban.ip}</span>
+                        <button class="btn btn-unban" onclick="unbanIP('${ban.ip}')">Unban</button>
+                    </div>
+                    <div class="ban-reason" title="${ban.reason || 'Unknown'}">${ban.reason || 'Manual ban'}</div>
+                    <div class="ban-footer">
+                        <span class="countdown">--:--</span>
+                    </div>
+                `;
+                container.appendChild(el);
+            });
+            updateCountdowns();
+        }
+
+        function updateCountdowns() {
+            const els = document.querySelectorAll('.ban-item');
+            const now = Date.now();
+            els.forEach(el => {
+                const exp = new Date(el.dataset.expiresAt).getTime();
+                const diff = exp - now;
+                const cdEl = el.querySelector('.countdown');
+                
+                if (diff <= 0) {
+                    cdEl.textContent = 'Expired';
+                    cdEl.classList.remove('urgent');
+                } else {
+                    const m = Math.floor(diff / 60000);
+                    const s = Math.floor((diff % 60000) / 1000);
+                    cdEl.textContent = `${m}m ${s}s remaining`;
+                    if (m < 5) cdEl.classList.add('urgent');
+                    else cdEl.classList.remove('urgent');
+                }
+            });
+        }
+
+        async function unbanIP(ip) {
+            if(!confirm(`Are you sure you want to unban ${ip}?`)) return;
+            try {
+                const res = await fetch('/api/unban', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ip})
+                });
+                const data = await res.json();
+                if(data.success) {
+                    await loadBans();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch(e) {
+                alert('Network error while unbanning');
+            }
+        }
+
+        // Audit Table
+        function renderAuditTable() {
+            const tbody = document.getElementById('auditTableBody');
+            if (!auditData || !auditData.length) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No audit logs available</td></tr>';
+                return;
+            }
+
+            const start = currentPage * PAGE_SIZE;
+            const pageData = auditData.slice(start, start + PAGE_SIZE);
+            
+            tbody.innerHTML = '';
+            pageData.forEach(item => {
+                const action = (item.action || 'ALLOW').toUpperCase();
+                const rowClass = action === 'BLOCK' ? 'row-block' : 'row-allow';
+                const confPct = Math.round((item.confidence || 0) * 100) + '%';
+                const reason = item.reasoning || '';
+                const truncReason = reason.length > 80 ? reason.substring(0, 77) + '...' : reason;
+                const dTool = reason.length > 80 ? `data-tooltip="${reason.replace(/"/g, '&quot;')}"` : '';
+
+                tbody.innerHTML += `
+                    <tr class="${rowClass}">
+                        <td class="mono">${formatTime(item.timestamp)}</td>
+                        <td class="mono">${item.ip}</td>
+                        <td>${item.threat_label || '-'}</td>
+                        <td>${confPct}</td>
+                        <td><strong>${action}</strong></td>
+                        <td class="reasoning-cell" ${dTool}>${truncReason}</td>
+                    </tr>
+                `;
+            });
+
+            document.getElementById('btnPrev').disabled = currentPage === 0;
+            document.getElementById('btnNext').disabled = start + PAGE_SIZE >= auditData.length;
+        }
+
+        function changePage(dir) {
+            currentPage += dir;
+            if(currentPage < 0) currentPage = 0;
+            renderAuditTable();
+        }
+
+        // Uptime
+        function updateUptime() {
+            const diff = Math.floor((Date.now() - startTime) / 1000);
+            const h = Math.floor(diff / 3600).toString().padStart(2, '0');
+            const m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
+            const s = Math.floor(diff % 60).toString().padStart(2, '0');
+            elUptime.textContent = `Uptime: ${h}:${m}:${s}`;
+        }
+    </script>
+</body>
+</html>

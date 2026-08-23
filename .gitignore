@@ -1,6 +1,6 @@
-snoop.db
-snoop.log
-snoop.pid
+morphiq.db
+morphiq.log
+morphiq.pid
 __pycache__/
 *.pyc
 .venv/

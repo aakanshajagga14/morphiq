@@ -12,9 +12,9 @@ firewall_backend: mock
 dashboard_enabled: true
 dashboard_port: 8080
 dashboard_host: 127.0.0.1
-db_path: snoop.db
-pid_file: snoop.pid
-snoop_log_file: logs/snoop.log
+db_path: morphiq.db
+pid_file: morphiq.pid
+morphiq_log_file: logs/morphiq.log
 log_level: INFO
 queue_maxsize: 10000
 anomaly_threshold: 0.85

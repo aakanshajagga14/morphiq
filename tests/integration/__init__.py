@@ -1,1 +1,1 @@
-# Snoop IPS package
+# MorphIQ IPS package
