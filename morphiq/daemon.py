@@ -1,28 +1,29 @@
 from __future__ import annotations
+
 import asyncio
 import json
 import logging
 import logging.handlers
 import os
 import signal
-import sys
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
-from morphiq.models import *
-from morphiq.config import Config, ConfigLoader, ConfigWatcher, load_config
-from morphiq.store.sqlite_store import SQLiteStore
-from morphiq.fw.firewall_controller import FirewallController
-from morphiq.fw.cooldown_scheduler import CooldownScheduler
-from morphiq.pipeline.log_tailer import LogTailer
-from morphiq.pipeline.heuristic_filter import HeuristicFilter
-from morphiq.pipeline.anomaly_detector import AnomalyDetector
-from morphiq.pipeline.probe_detector import ProbeDetector
-from morphiq.pipeline.agent import Agent
+from morphiq.config import Config, load_config
 from morphiq.dashboard.server import DashboardServer
+from morphiq.fw.cooldown_scheduler import CooldownScheduler
+from morphiq.fw.firewall_controller import FirewallController
 from morphiq.llm_client import LLMClient
+from morphiq.models import Action
+from morphiq.pipeline.agent import Agent
+from morphiq.pipeline.anomaly_detector import AnomalyDetector
+from morphiq.pipeline.heuristic_filter import HeuristicFilter
+from morphiq.pipeline.log_tailer import LogTailer
+from morphiq.pipeline.probe_detector import ProbeDetector
+from morphiq.store.sqlite_store import SQLiteStore
+
 
 class JsonFormatter(logging.Formatter):
     def format(self, record):
@@ -52,7 +53,9 @@ class Daemon:
         self.cooldown_scheduler = CooldownScheduler(config, self.store, self.fw)
         self.log_tailer = LogTailer(config, self.raw_queue, self.store)
         self.probe_detector = ProbeDetector(config, self.store, self.heuristic_queue, self.agent_queue)
-        self.heuristic_filter = HeuristicFilter(config, self.anomaly_queue)
+        self.heuristic_filter = HeuristicFilter(
+            config, self.anomaly_queue, self.store
+        )
         # NOTE: heuristic_filter.process() receives from heuristic_queue and forwards hits to anomaly_queue
         self.anomaly_detector = AnomalyDetector(config, self.agent_queue, self.store)
         
@@ -127,9 +130,9 @@ class Daemon:
 
     async def _start_llm_background(self) -> None:
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self.llm_client.load)
-        self._llm_loaded = True
-        logging.info("LLM model loaded successfully")
+        self._llm_loaded = await loop.run_in_executor(None, self.llm_client.load)
+        if self._llm_loaded:
+            logging.info("LLM client initialized successfully")
 
     async def _agent_consumer(self) -> None:
         while not self._stop_event.is_set():
@@ -141,13 +144,13 @@ class Daemon:
             try:
                 result = await self.agent.run(entry)
                 if result and result.action == Action.BLOCK:
-                    self.store.update_stats(blocked=self.store.get_stats().blocked + 1)
+                    self.store.increment_stat("blocked")
                 elif result and result.action == Action.ALLOW:
-                    self.store.update_stats(allowed=self.store.get_stats().allowed + 1)
-                stats = self.store.get_stats()
-                self.store.update_stats(agent_invoked=stats.agent_invoked + 1)
+                    self.store.increment_stat("allowed")
+                self.store.increment_stat("agent_invoked")
             except Exception as e:
                 logging.error(f"Error in agent_consumer: {e}", exc_info=True)
+                self.store.increment_stat("errors")
             finally:
                 self.agent_queue.task_done()
 
@@ -166,6 +169,7 @@ class Daemon:
         })
         
         self.store.initialize()
+        self.store.update_stats(started_at=datetime.now(timezone.utc))
         self.fw.restore_bans()
         
         tasks = []
@@ -184,7 +188,6 @@ class Daemon:
         if getattr(self.config, 'dashboard_enabled', False):
             self.dashboard = DashboardServer(self.config, self.store, self.fw)
             tasks.append(asyncio.create_task(self.dashboard.start()))
-            pass
 
         loop = asyncio.get_running_loop()
         if os.name == 'nt':
@@ -214,8 +217,13 @@ class Daemon:
                 task.cancel()
                 
         await asyncio.gather(*tasks, return_exceptions=True)
+
+        if hasattr(self, "dashboard"):
+            await self.dashboard.stop()
+        await self.llm_client.close()
         
         self._remove_pid()
+        self.store.close()
         logging.info("Shutdown complete")
 
     def reload_config(self, new_config: Config) -> None:
@@ -231,7 +239,7 @@ def run(config_path: str) -> None:
         config = load_config(config_path)
         daemon = Daemon(config)
         asyncio.run(daemon.start())
-    except Exception as exc:
+    except Exception:
         import traceback
         fatal_log = Path(config_path).parent / "morphiq-fatal.log"
         try:

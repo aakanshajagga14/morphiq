@@ -3,9 +3,11 @@ import logging
 from collections import defaultdict, deque
 from datetime import datetime, timezone
 from typing import Deque, Tuple
-from morphiq.models import LogEntry, ProbeEvent
+
 from morphiq.config import Config
+from morphiq.models import LogEntry, ProbeEvent
 from morphiq.store.sqlite_store import SQLiteStore
+
 
 class ProbeDetector:
     def __init__(self, config: Config, store: SQLiteStore, heuristic_queue: asyncio.Queue, agent_queue: asyncio.Queue):
@@ -44,6 +46,7 @@ class ProbeDetector:
 
     async def process(self, input_queue: asyncio.Queue) -> None:
         while not self._stop_event.is_set():
+            entry = None
             try:
                 entry = await asyncio.wait_for(input_queue.get(), timeout=1.0)
                 
@@ -68,11 +71,14 @@ class ProbeDetector:
                 else:
                     await self.heuristic_queue.put(entry)
                     
-                input_queue.task_done()
             except asyncio.TimeoutError:
                 continue
             except Exception as e:
                 logging.error(f"Error in probe detector: {e}")
+                self.store.increment_stat("errors")
+            finally:
+                if entry is not None:
+                    input_queue.task_done()
 
     async def stop(self) -> None:
         self._stop_event.set()

@@ -1,10 +1,18 @@
+import json
 import sqlite3
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
+
 from morphiq.models import (
-    LogEntry, TrafficRecord, BanRecord, AuditEvent,
-    FeedbackEvent, ProbeEvent, DaemonStats
+    AuditEvent,
+    BanRecord,
+    DaemonStats,
+    FeedbackEvent,
+    LogEntry,
+    ProbeEvent,
+    TrafficRecord,
 )
+
 
 class SQLiteStore:
     def __init__(self, db_path: str):
@@ -90,8 +98,14 @@ class SQLiteStore:
             """)
             self._conn.commit()
 
+    @staticmethod
+    def _serialize_datetime(value: datetime) -> str:
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc).isoformat()
+
     def insert_traffic(self, entry: LogEntry, retention_s: int) -> None:
-        observed_at = entry.timestamp.strftime('%Y-%m-%dT%H:%M:%S.%f')
+        observed_at = self._serialize_datetime(entry.timestamp)
         with self._lock:
             self._conn.execute("""
                 INSERT INTO traffic_history
@@ -127,8 +141,10 @@ class SQLiteStore:
         ]
 
     def get_request_frequency(self, ip: str, window_s: int) -> float:
-        now = datetime.utcnow()
-        cutoff = datetime.fromtimestamp(now.timestamp() - window_s).strftime('%Y-%m-%dT%H:%M:%S.%f')
+        now = datetime.now(timezone.utc)
+        cutoff = self._serialize_datetime(
+            datetime.fromtimestamp(now.timestamp() - window_s, tz=timezone.utc)
+        )
         with self._lock:
             cursor = self._conn.execute("""
                 SELECT COUNT(*) FROM traffic_history
@@ -141,8 +157,8 @@ class SQLiteStore:
         return (count / window_s) * 60.0
 
     def insert_ban(self, ban: BanRecord) -> None:
-        banned_at = ban.banned_at.strftime('%Y-%m-%dT%H:%M:%S.%f')
-        expires_at = ban.expires_at.strftime('%Y-%m-%dT%H:%M:%S.%f')
+        banned_at = self._serialize_datetime(ban.banned_at)
+        expires_at = self._serialize_datetime(ban.expires_at)
         with self._lock:
             self._conn.execute("""
                 INSERT OR REPLACE INTO active_bans (ip, reason, banned_at, expires_at)
@@ -170,7 +186,12 @@ class SQLiteStore:
             self._conn.commit()
 
     def append_audit(self, event: AuditEvent) -> None:
-        occurred_at = event.occurred_at.strftime('%Y-%m-%dT%H:%M:%S.%f')
+        occurred_at = self._serialize_datetime(event.occurred_at)
+        execution_trace = (
+            json.dumps(event.execution_trace, sort_keys=True)
+            if event.execution_trace is not None
+            else None
+        )
         with self._lock:
             self._conn.execute("""
                 INSERT INTO threat_audit_log
@@ -179,7 +200,7 @@ class SQLiteStore:
             """, (
                 event.source_ip, event.entry_raw, event.threat_label, event.confidence,
                 event.recommended_action, event.final_action, event.reasoning,
-                event.execution_trace, event.error, occurred_at
+                execution_trace, event.error, occurred_at
             ))
             self._conn.commit()
 
@@ -203,21 +224,23 @@ class SQLiteStore:
                 recommended_action=row[5],
                 final_action=row[6],
                 reasoning=row[7],
-                execution_trace=row[8],
+                execution_trace=json.loads(row[8]) if row[8] else None,
                 error=row[9],
                 occurred_at=datetime.fromisoformat(row[10])
             ) for row in rows
         ]
 
     def prune_traffic_history(self, retention_s: int) -> None:
-        now = datetime.utcnow()
-        cutoff = datetime.fromtimestamp(now.timestamp() - retention_s).strftime('%Y-%m-%dT%H:%M:%S.%f')
+        now = datetime.now(timezone.utc)
+        cutoff = self._serialize_datetime(
+            datetime.fromtimestamp(now.timestamp() - retention_s, tz=timezone.utc)
+        )
         with self._lock:
             self._conn.execute("DELETE FROM traffic_history WHERE observed_at < ?", (cutoff,))
             self._conn.commit()
 
     def insert_feedback(self, event: FeedbackEvent) -> None:
-        created_at = event.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f')
+        created_at = self._serialize_datetime(event.created_at)
         with self._lock:
             self._conn.execute("""
                 INSERT INTO feedback_log (ip, is_false_positive, context, created_at)
@@ -243,10 +266,14 @@ class SQLiteStore:
             ) for row in rows
         ]
 
+    def get_feedback_history(self, ip: str) -> list[FeedbackEvent]:
+        """Backward-compatible, descriptive alias used by the agent."""
+        return self.get_feedback_for_ip(ip)
+
     def insert_probe_event(self, event: ProbeEvent) -> None:
-        window_start = event.window_start.strftime('%Y-%m-%dT%H:%M:%S.%f')
-        window_end = event.window_end.strftime('%Y-%m-%dT%H:%M:%S.%f')
-        flagged_at = event.flagged_at.strftime('%Y-%m-%dT%H:%M:%S.%f')
+        window_start = self._serialize_datetime(event.window_start)
+        window_end = self._serialize_datetime(event.window_end)
+        flagged_at = self._serialize_datetime(event.flagged_at)
         with self._lock:
             self._conn.execute("""
                 INSERT INTO probe_events (ip, distinct_paths, window_start, window_end, flagged_at)
@@ -274,6 +301,28 @@ class SQLiteStore:
             ) for row in rows
         ]
 
+    def get_probe_events(self, ip: str, limit: int) -> list[ProbeEvent]:
+        with self._lock:
+            cursor = self._conn.execute("""
+                SELECT ip, distinct_paths, window_start, window_end, flagged_at
+                FROM probe_events
+                WHERE ip = ?
+                ORDER BY flagged_at DESC
+                LIMIT ?
+            """, (ip, limit))
+            rows = cursor.fetchall()
+
+        return [
+            ProbeEvent(
+                ip=row[0],
+                distinct_paths=row[1],
+                window_start=datetime.fromisoformat(row[2]),
+                window_end=datetime.fromisoformat(row[3]),
+                flagged_at=datetime.fromisoformat(row[4]),
+            )
+            for row in rows
+        ]
+
     def get_stats(self) -> DaemonStats:
         with self._lock:
             cursor = self._conn.execute("SELECT key, value FROM daemon_stats")
@@ -288,8 +337,28 @@ class SQLiteStore:
             blocked=int(data.get("blocked", 0)),
             allowed=int(data.get("allowed", 0)),
             errors=int(data.get("errors", 0)),
-            started_at=datetime.fromisoformat(data["started_at"]) if "started_at" in data else datetime.utcnow()
+            started_at=(
+                datetime.fromisoformat(data["started_at"])
+                if "started_at" in data
+                else datetime.now(timezone.utc)
+            )
         )
+
+    def increment_stat(self, key: str, amount: int = 1) -> None:
+        allowed = {
+            "total_parsed", "heuristic_flagged", "ml_escalated",
+            "agent_invoked", "blocked", "allowed", "errors",
+        }
+        if key not in allowed:
+            raise ValueError(f"unsupported statistic: {key}")
+        with self._lock:
+            self._conn.execute("""
+                INSERT INTO daemon_stats (key, value)
+                VALUES (?, ?)
+                ON CONFLICT(key) DO UPDATE SET
+                    value = CAST(CAST(value AS INTEGER) + ? AS TEXT)
+            """, (key, str(amount), amount))
+            self._conn.commit()
 
     def update_stats(self, **kwargs) -> None:
         with self._lock:
@@ -305,4 +374,5 @@ class SQLiteStore:
             self._conn.commit()
 
     def close(self) -> None:
-        self._conn.close()
+        with self._lock:
+            self._conn.close()

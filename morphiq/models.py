@@ -1,11 +1,10 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
-import re
-
 
 # ---------------------------------------------------------------------------
 # Log parsing
@@ -174,4 +173,4 @@ class DaemonStats:
     blocked: int = 0
     allowed: int = 0
     errors: int = 0
-    started_at: datetime = field(default_factory=datetime.utcnow)
+    started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

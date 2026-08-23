@@ -1,6 +1,5 @@
-import asyncio
-import logging
 from datetime import datetime
+
 from aiohttp import web
 
 LOG_FILE = "demo_access.log"
@@ -150,7 +149,7 @@ async def handle_home(request: web.Request):
     return web.Response(text=LOGIN_HTML, content_type='text/html')
 
 async def handle_login(request: web.Request):
-    data = await request.post()
+    await request.post()
     write_log(request, 401, 20)
     return web.Response(text="Invalid credentials.", status=401)
 
@@ -165,6 +164,6 @@ app.router.add_post('/login', handle_login)
 app.router.add_get('/{tail:.*}', handle_attack)
 
 if __name__ == '__main__':
-    print(f"🚀 Starting Demo Login App on http://localhost:8080")
+    print("🚀 Starting Demo Login App on http://localhost:8080")
     print(f"📝 Writing logs to: {LOG_FILE}")
     web.run_app(app, port=8080)

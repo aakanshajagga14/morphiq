@@ -1,16 +1,17 @@
 from __future__ import annotations
+
+import ctypes
 import ipaddress
 import logging
+import os
 import subprocess
 import sys
-import os
-import ctypes
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from morphiq.config import Config
-from morphiq.store.sqlite_store import SQLiteStore
 from morphiq.models import BanRecord
+from morphiq.store.sqlite_store import SQLiteStore
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,7 @@ class FirewallController:
         record = BanRecord(
             ip=ip,
             reason=reason,
-            created_at=now,
+            banned_at=now,
             expires_at=expires_at
         )
         self.store.insert_ban(record)
@@ -92,7 +93,12 @@ class FirewallController:
     def restore_bans(self) -> None:
         active_bans = self.store.get_active_bans()
         now = datetime.now(timezone.utc)
-        valid_bans = [ban for ban in active_bans if ban.expires_at > now]
+        valid_bans = []
+        for ban in active_bans:
+            if ban.expires_at > now:
+                valid_bans.append(ban)
+            else:
+                self.store.delete_ban(ban.ip)
 
         for ban in valid_bans:
             cmd = self._block_cmd(ban.ip)
@@ -128,6 +134,9 @@ class FirewallController:
             return True
         except subprocess.CalledProcessError as e:
             logger.error(f"Command failed: {cmd}. Error: {e.stderr}")
+            return False
+        except OSError as e:
+            logger.error(f"Unable to execute firewall command {cmd}: {e}")
             return False
 
     @staticmethod

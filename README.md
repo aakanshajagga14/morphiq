@@ -1,6 +1,7 @@
 # MorphIQ
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![CI](https://github.com/aakanshajagga14/morphiq/actions/workflows/ci.yml/badge.svg)](https://github.com/aakanshajagga14/morphiq/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Status: Alpha](https://img.shields.io/badge/status-alpha-orange.svg)](#project-status)
 
@@ -144,8 +145,11 @@ The LLM layer is optional. If it is disabled or unavailable, MorphIQ continues i
 
 ```bash
 python -m pip install -e ".[dev]"
+ruff check .
 pytest
 ```
+
+The test suite covers configuration validation, access-log parsing, heuristic and probe detection, anomaly-model retraining, SQLite persistence, mock firewall enforcement, LLM response parsing, CLI management commands, and the end-to-end daemon pipeline. CI runs the static checks and tests on Python 3.11 and 3.12 for every push and pull request.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution workflow and [SECURITY.md](SECURITY.md) for responsible vulnerability reporting.
 

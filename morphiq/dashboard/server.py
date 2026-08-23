@@ -1,19 +1,20 @@
 from __future__ import annotations
+
 import asyncio
 import json
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
-from typing import AsyncIterator, Any, Dict
+from typing import Any
 
 from aiohttp import web
 from aiohttp.web_request import Request
 from aiohttp.web_response import Response, StreamResponse
 
 from morphiq.config import Config
-from morphiq.store.sqlite_store import SQLiteStore
 from morphiq.fw.firewall_controller import FirewallController
+from morphiq.store.sqlite_store import SQLiteStore
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +123,7 @@ class DashboardServer:
     async def handle_probes(self, request: Request) -> Response:
         limit = int(request.query.get('limit', 20))
         # Assuming store has get_recent_probes
-        probes = getattr(self.store, 'get_recent_probes', lambda limit: [])(limit)
+        probes = self.store.get_recent_probes(limit)
         return web.json_response(probes, dumps=dumps)
 
     async def handle_unban(self, request: Request) -> Response:
@@ -139,7 +140,6 @@ class DashboardServer:
             # Unblock
             success = self.fw.unblock(ip)
             if success:
-                self.store.delete_ban(ip)
                 return web.json_response({"success": True, "message": f"IP {ip} unbanned"})
             else:
                 return web.json_response({"success": False, "message": "Failed to unban IP in firewall"}, status=500)

@@ -3,12 +3,16 @@ import logging
 import math
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
+
 import joblib
 from sklearn.ensemble import IsolationForest
-from morphiq.models import LogEntry, FeatureVector
+
 from morphiq.config import Config
+from morphiq.models import FeatureVector, LogEntry
 from morphiq.store.sqlite_store import SQLiteStore
+
 
 class AnomalyDetector:
     def __init__(self, config: Config, agent_queue: asyncio.Queue, store: SQLiteStore):
@@ -111,7 +115,7 @@ class AnomalyDetector:
             
         self._heuristic_only_mode = True
 
-    async def retrain(self) -> None:
+    async def retrain(self) -> int:
         with self.store._lock:
             cursor = self.store._conn.execute("""
                 SELECT source_ip, effective_ip, method, path, query_string, status_code, user_agent, bytes_sent, raw_line, observed_at
@@ -121,7 +125,7 @@ class AnomalyDetector:
             
         if len(rows) < self.config.min_training_samples:
             logging.info("Not enough samples to retrain model.")
-            return
+            return 0
             
         vectors = []
         for row in rows:
@@ -149,7 +153,7 @@ class AnomalyDetector:
             ])
             
         if not vectors:
-            return
+            return 0
             
         model = IsolationForest(n_estimators=100, contamination='auto', random_state=42)
         model.fit(vectors)
@@ -158,11 +162,16 @@ class AnomalyDetector:
         self._heuristic_only_mode = False
         
         if self.config.isolation_forest_model_path:
+            Path(self.config.isolation_forest_model_path).parent.mkdir(
+                parents=True, exist_ok=True
+            )
             joblib.dump(model, self.config.isolation_forest_model_path)
             logging.info(f"Retrained and saved model to {self.config.isolation_forest_model_path}")
+        return len(vectors)
 
     async def process(self, anomaly_queue: asyncio.Queue) -> None:
         while not self._stop_event.is_set():
+            entry = None
             try:
                 entry = await asyncio.wait_for(anomaly_queue.get(), timeout=1.0)
                 
@@ -178,16 +187,20 @@ class AnomalyDetector:
                     
                     if self.should_escalate(score_val):
                         if self._consume_token():
+                            self.store.increment_stat("ml_escalated")
                             await self.agent_queue.put(entry)
                             logging.debug(f"ML escalation (score {score_val}): {entry.effective_ip}")
                         else:
                             logging.debug(f"Rate limited ML escalation for {entry.effective_ip}")
                             
-                anomaly_queue.task_done()
             except asyncio.TimeoutError:
                 continue
             except Exception as e:
                 logging.error(f"Error in anomaly detector: {e}")
+                self.store.increment_stat("errors")
+            finally:
+                if entry is not None:
+                    anomaly_queue.task_done()
 
     async def stop(self) -> None:
         self._stop_event.set()

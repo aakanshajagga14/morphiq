@@ -31,15 +31,20 @@ dependencies = [
   "langgraph>=0.2",
   "langchain-core>=0.2",
   "PyYAML>=6.0",
-  "typer[all]>=0.12",
+  "typer>=0.12",
   "rich>=13.0",
   "aiohttp>=3.9",
   "numpy>=1.26",
 ]
 
 [project.optional-dependencies]
-llm = ["llama-cpp-python"]
-dev = ["pytest>=8", "pytest-asyncio>=0.23", "hypothesis>=6", "pytest-mock>=3"]
+dev = [
+  "pytest>=8",
+  "pytest-asyncio>=0.23",
+  "hypothesis>=6",
+  "pytest-mock>=3",
+  "ruff>=0.9",
+]
 
 [project.scripts]
 morphiq = "morphiq.cli.main:app"
@@ -51,7 +56,19 @@ Issues = "https://github.com/aakanshajagga14/morphiq/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
+include = ["morphiq*"]
+
+[tool.setuptools.package-data]
+morphiq = ["dashboard/static/*.html"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]

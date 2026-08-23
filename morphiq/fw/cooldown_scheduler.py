@@ -1,17 +1,18 @@
 from __future__ import annotations
+
 import asyncio
 import logging
 from datetime import datetime, timezone
 
 from morphiq.config import Config
-from morphiq.store.sqlite_store import SQLiteStore
-from morphiq.models import AuditEvent, Action
 from morphiq.fw.firewall_controller import FirewallController
+from morphiq.models import AuditEvent
+from morphiq.store.sqlite_store import SQLiteStore
 
 logger = logging.getLogger(__name__)
 
 class CooldownScheduler:
-    def __init__(self, config: Config, fw: FirewallController, store: SQLiteStore):
+    def __init__(self, config: Config, store: SQLiteStore, fw: FirewallController):
         self.config = config
         self.fw = fw
         self.store = store
@@ -34,22 +35,18 @@ class CooldownScheduler:
             for ban in active_bans:
                 if ban.expires_at < now:
                     if self.fw.unblock(ban.ip):
-                        self.store.delete_ban(ban.ip)
                         audit_event = AuditEvent(
-                            timestamp=datetime.now(timezone.utc),
-                            ip=ban.ip,
-                            action=getattr(Action, "UNBAN", "unban"),
+                            source_ip=ban.ip,
+                            entry_raw="",
                             threat_label="expired_ban",
-                            reasoning="Ban duration elapsed"
+                            confidence=None,
+                            recommended_action="unban",
+                            final_action="unban",
+                            reasoning="Ban duration elapsed",
+                            execution_trace={"component": "cooldown_scheduler"},
+                            error=None,
+                            occurred_at=datetime.now(timezone.utc),
                         )
-                        # Explicitly setting it to string if the instructions wanted "final_action='unban'"
-                        # But using the object attributes ensures safety if Action is an Enum without UNBAN
-                        if not hasattr(audit_event, 'action'):
-                            # just to be sure we are compliant
-                            pass
-                        
-                        # In case the prompt explicitly wanted the action value to be the string "unban"
-                        audit_event.action = "unban" 
                         self.store.append_audit(audit_event)
                         unbanned_count += 1
                     else:

@@ -1,19 +1,18 @@
 from __future__ import annotations
+
 import os
-import platform
 import socket
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
+
 import yaml
 from rich.console import Console
 from rich.panel import Panel
-from rich.prompt import Prompt, Confirm
+from rich.prompt import Confirm, Prompt
 from rich.syntax import Syntax
 from rich.table import Table
-from rich import print as rprint
-from rich.progress import Progress, SpinnerColumn, TextColumn
+
 
 def setup_interactive(config_path: str = "config.yaml") -> None:
     console = Console()

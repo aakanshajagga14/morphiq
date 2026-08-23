@@ -660,10 +660,10 @@
 
         function updateStatsDisplay(newStats) {
             if (!newStats) return;
-            const parsed = newStats.total_requests || 0;
+            const parsed = newStats.total_parsed || 0;
             const escalated = newStats.ml_escalated || 0;
-            const blocked = newStats.total_blocked || 0;
-            const allowed = parsed - blocked; // rough approx
+            const blocked = newStats.blocked || 0;
+            const allowed = newStats.allowed || 0;
 
             animateCounter(elParsed, stats.parsed, parsed);
             animateCounter(elEscalated, stats.escalated, escalated);
@@ -690,14 +690,14 @@
         function createFeedElement(item) {
             const el = document.createElement('div');
             el.className = 'feed-item slide-in';
-            const action = (item.action || 'ALLOW').toUpperCase();
+            const action = (item.final_action || 'ALLOW').toUpperCase();
             const pillClass = action === 'BLOCK' ? 'pill-block' : 'pill-allow';
             const conf = item.confidence || 0.0;
             const color = getConfidenceColor(conf);
             
             el.innerHTML = `
-                <div class="feed-time">${formatTime(item.timestamp)}</div>
-                <div class="mono">${item.ip}</div>
+                <div class="feed-time">${formatTime(item.occurred_at)}</div>
+                <div class="mono">${item.source_ip}</div>
                 <div class="confidence-wrapper">
                     <div class="confidence-bar" style="width: ${Math.max(5, conf * 100)}%; background: ${color}"></div>
                 </div>
@@ -813,7 +813,7 @@
             
             tbody.innerHTML = '';
             pageData.forEach(item => {
-                const action = (item.action || 'ALLOW').toUpperCase();
+                const action = (item.final_action || 'ALLOW').toUpperCase();
                 const rowClass = action === 'BLOCK' ? 'row-block' : 'row-allow';
                 const confPct = Math.round((item.confidence || 0) * 100) + '%';
                 const reason = item.reasoning || '';
@@ -822,8 +822,8 @@
 
                 tbody.innerHTML += `
                     <tr class="${rowClass}">
-                        <td class="mono">${formatTime(item.timestamp)}</td>
-                        <td class="mono">${item.ip}</td>
+                        <td class="mono">${formatTime(item.occurred_at)}</td>
+                        <td class="mono">${item.source_ip}</td>
                         <td>${item.threat_label || '-'}</td>
                         <td>${confPct}</td>
                         <td><strong>${action}</strong></td>

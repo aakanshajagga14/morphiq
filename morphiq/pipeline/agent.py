@@ -1,24 +1,29 @@
 from __future__ import annotations
-import asyncio
-import json
+
 import logging
 import time
 from datetime import datetime, timezone
 from typing import Optional, TypedDict
 
-from morphiq.models import (
-    LogEntry, Action, AgentDecision, LLMAssessment, AuditEvent,
-    TrafficRecord, ProbeEvent, FeedbackEvent
-)
 from morphiq.config import Config
-from morphiq.store.sqlite_store import SQLiteStore
-from morphiq.llm_client import LLMClient
 from morphiq.fw.firewall_controller import FirewallController
+from morphiq.llm_client import LLMClient
+from morphiq.models import (
+    Action,
+    AgentDecision,
+    AuditEvent,
+    FeedbackEvent,
+    LLMAssessment,
+    LogEntry,
+    ProbeEvent,
+    TrafficRecord,
+)
+from morphiq.store.sqlite_store import SQLiteStore
 
 logger = logging.getLogger(__name__)
 
 try:
-    from langgraph.graph import StateGraph, END
+    from langgraph.graph import END, StateGraph
     HAS_LANGGRAPH = True
 except ImportError:
     HAS_LANGGRAPH = False
@@ -40,6 +45,15 @@ class Agent:
         self.fw = fw
         self.llm = llm
         self._graph = None
+
+    def _fallback_assessment(self, reason: str) -> LLMAssessment:
+        return LLMAssessment(
+            threat_label="detector_escalation",
+            confidence=0.65,
+            recommended_action="block",
+            ban_duration_seconds=self.config.default_ban_duration_s,
+            reasoning=reason,
+        )
 
     def _build_graph(self):
         if not HAS_LANGGRAPH:
@@ -71,12 +85,13 @@ class Agent:
         state["node_timings"]["investigate"] = elapsed_ms
         return state
 
-    def _reason(self, state: AgentStateDict) -> AgentStateDict:
+    async def _reason(self, state: AgentStateDict) -> AgentStateDict:
         start_time = time.perf_counter()
         
         if not self.llm.is_loaded:
-            state["llm_assessment"] = None
-            state["error"] = "LLM not loaded"
+            state["llm_assessment"] = self._fallback_assessment(
+                "Blocked by deterministic detector fallback; LLM is disabled or unavailable."
+            )
         else:
             try:
                 prompt = self.llm.build_prompt(
@@ -86,19 +101,19 @@ class Agent:
                     state["feedback_history"]
                 )
                 
-                try:
-                    response = asyncio.run(self.llm.infer(prompt))
-                except Exception as e:
-                    logger.error(f"Failed inside asyncio.run for infer: {e}")
-                    raise
-                    
+                response = await self.llm.infer(prompt)
                 state["llm_assessment"] = self.llm.parse_assessment(response)
                 if not state["llm_assessment"]:
                     state["error"] = "Failed to parse assessment"
+                    state["llm_assessment"] = self._fallback_assessment(
+                        "Blocked by deterministic detector fallback after an invalid LLM response."
+                    )
             except Exception as e:
                 logger.error(f"Reasoning failed: {e}")
-                state["llm_assessment"] = None
                 state["error"] = str(e)
+                state["llm_assessment"] = self._fallback_assessment(
+                    "Blocked by deterministic detector fallback after an LLM error."
+                )
                 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
         state["node_timings"]["reason"] = elapsed_ms
@@ -111,21 +126,36 @@ class Agent:
         assessment = state["llm_assessment"]
         
         if assessment is None:
-            state["action"] = getattr(Action, "ALLOW", "allow")
+            state["action"] = Action.ALLOW
         else:
             if assessment.recommended_action == "block":
                 duration = assessment.ban_duration_seconds or self.config.default_ban_duration_s
-                self.fw.block(entry.effective_ip, assessment.threat_label, duration)
-                state["action"] = getattr(Action, "BLOCK", "block")
+                if self.fw.block(
+                    entry.effective_ip, assessment.threat_label, duration
+                ):
+                    state["action"] = Action.BLOCK
+                else:
+                    state["action"] = Action.ALLOW
+                    state["error"] = "Firewall enforcement failed or IP is whitelisted"
             else:
-                state["action"] = getattr(Action, "ALLOW", "allow")
+                state["action"] = Action.ALLOW
 
+        action = state["action"] or Action.ALLOW
         audit_event = AuditEvent(
-            timestamp=datetime.now(timezone.utc),
-            ip=entry.effective_ip,
-            action=state["action"],
+            source_ip=entry.effective_ip,
+            entry_raw=entry.raw_line,
             threat_label=assessment.threat_label if assessment else None,
-            reasoning=assessment.reasoning if assessment else ("Error: " + str(state.get("error")))
+            confidence=assessment.confidence if assessment else None,
+            recommended_action=assessment.recommended_action if assessment else None,
+            final_action=action.value,
+            reasoning=(
+                assessment.reasoning
+                if assessment
+                else "Allowed without LLM assessment"
+            ),
+            execution_trace={"node_timings": dict(state["node_timings"])},
+            error=state.get("error"),
+            occurred_at=datetime.now(timezone.utc),
         )
         self.store.append_audit(audit_event)
         
@@ -145,27 +175,23 @@ class Agent:
             "node_timings": {}
         }
 
-        loop = asyncio.get_running_loop()
         if HAS_LANGGRAPH:
             if self._graph is None:
                 self._build_graph()
-            
-            state = await loop.run_in_executor(None, self._graph.invoke, state)
+            state = await self._graph.ainvoke(state)
         else:
-            def _run_sequential():
-                s = self._investigate(state)
-                s = self._reason(s)
-                return self._act(s)
-            state = await loop.run_in_executor(None, _run_sequential)
+            state = self._investigate(state)
+            state = await self._reason(state)
+            state = self._act(state)
 
         execution_trace = {
-            "entry_summary": f"{entry.method} {entry.path} {entry.status}",
+            "entry_summary": f"{entry.method} {entry.path} {entry.status_code}",
             "node_timings": state["node_timings"],
             "llm_used": self.llm.is_loaded
         }
         
         return AgentDecision(
-            action=state["action"],
+            action=state["action"] or Action.ALLOW,
             assessment=state["llm_assessment"],
             execution_trace=execution_trace
         )

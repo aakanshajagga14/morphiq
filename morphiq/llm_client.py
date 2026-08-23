@@ -1,15 +1,20 @@
 from __future__ import annotations
-import asyncio
+
 import json
 import logging
 import re
-from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
-from morphiq.config import Config
-from morphiq.models import LogEntry, TrafficRecord, ProbeEvent, FeedbackEvent, LLMAssessment
-
 import aiohttp
+
+from morphiq.config import Config
+from morphiq.models import (
+    FeedbackEvent,
+    LLMAssessment,
+    LogEntry,
+    ProbeEvent,
+    TrafficRecord,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +38,9 @@ class LLMClient:
         return True
 
     def build_prompt(self, entry: LogEntry, history: list[TrafficRecord], probes: list[ProbeEvent], feedback: list[FeedbackEvent]) -> str:
-        history_lines = "\n".join(f"{r.method} {r.path} -> {r.status}" for r in history)
+        history_lines = "\n".join(
+            f"{r.method} {r.path} -> {r.status_code}" for r in history
+        ) or "None"
         
         probe_flag = f"YES - {len(probes)} distinct paths in window" if probes else "NO"
         
@@ -53,8 +60,8 @@ Request Details:
 IP: {entry.effective_ip}
 Method: {entry.method}
 Path: {entry.path}
-Query: {entry.query}
-Status: {entry.status}
+Query: {entry.query_string}
+Status: {entry.status_code}
 User-Agent: {entry.user_agent}
 
 Recent Traffic History:
@@ -148,3 +155,8 @@ Evaluate the request and provide your assessment in JSON format.
             ban_duration_seconds=ban_duration,
             reasoning=str(data["reasoning"])
         )
+
+    async def close(self) -> None:
+        if self._session is not None and not self._session.closed:
+            await self._session.close()
+        self._session = None

@@ -1,15 +1,16 @@
 import asyncio
+import json
 import logging
 import os
 import re
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+
 import aiofiles
 
-from morphiq.models import LogEntry
 from morphiq.config import Config
+from morphiq.models import LogEntry
 from morphiq.store.sqlite_store import SQLiteStore
 
 LOG_PRESETS = {
@@ -70,6 +71,10 @@ class LogTailer:
                             
                         entry = self._parse_line(line.strip())
                         if entry:
+                            self.store.insert_traffic(
+                                entry, self.config.traffic_retention_s
+                            )
+                            self.store.increment_stat("total_parsed")
                             await self.output_queue.put(entry)
                         else:
                             self.parse_error_count += 1
