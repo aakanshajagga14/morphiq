@@ -1,8 +1,37 @@
-morphiq.db
-morphiq.log
-morphiq.pid
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# Virtual environments
 .venv/
+venv/
+
+# Runtime state
+*.db
+*.db-shm
+*.db-wal
+*.log
+*.pid
+logs/
+
+# Local models and trained data
 models/*.gguf
-data/if_model.joblib
+data/*.joblib
+
+# Generated analysis output
+graphify-out/
+
+# Local tooling and OS files
+.env
+.env.*
+.DS_Store
+.idea/
+.vscode/

@@ -22,7 +22,7 @@ from morphiq.cli.setup_wizard import setup_interactive
 
 app = typer.Typer(
     name="morphiq",
-    help="[bold blue]MorphIQ IPS[/bold blue] — AI-powered intrusion prevention for Windows",
+    help="[bold blue]MorphIQ IPS[/bold blue] — local-first, AI-assisted intrusion prevention",
     rich_markup_mode="rich",
     add_completion=False,
 )

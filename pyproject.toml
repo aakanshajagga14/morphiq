@@ -5,8 +5,24 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "morphiq-ips"
 version = "0.1.0"
-description = "AI-powered Intrusion Prevention System"
+description = "Local-first, AI-assisted intrusion prevention for web servers"
+readme = "README.md"
 requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [
+  { name = "Aakansha Jagga" },
+]
+keywords = ["security", "intrusion-prevention", "firewall", "anomaly-detection", "llm"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: Security",
+]
 dependencies = [
   "aiofiles>=23.0",
   "watchdog>=4.0",
@@ -27,6 +43,11 @@ dev = ["pytest>=8", "pytest-asyncio>=0.23", "hypothesis>=6", "pytest-mock>=3"]
 
 [project.scripts]
 morphiq = "morphiq.cli.main:app"
+
+[project.urls]
+Homepage = "https://github.com/aakanshajagga14/morphiq"
+Repository = "https://github.com/aakanshajagga14/morphiq"
+Issues = "https://github.com/aakanshajagga14/morphiq/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]

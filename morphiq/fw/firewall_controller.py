@@ -101,24 +101,24 @@ class FirewallController:
             logger.info(f"Restored ban for {ban.ip}")
 
     def _block_cmd(self, ip: str) -> Optional[list[str]]:
-        if self.config.fw_backend == "windows":
+        if self.config.firewall_backend == "windows":
             return ["netsh", "advfirewall", "firewall", "add", "rule", f"name=MorphIQ-Block-{ip}", "dir=in", "action=block", f"remoteip={ip}", "protocol=any"]
-        elif self.config.fw_backend == "iptables":
+        elif self.config.firewall_backend == "iptables":
             return ["iptables", "-I", "INPUT", "-s", ip, "-j", "DROP"]
-        elif self.config.fw_backend == "ufw":
+        elif self.config.firewall_backend == "ufw":
             return ["ufw", "insert", "1", "deny", "from", ip]
-        elif self.config.fw_backend == "mock":
+        elif self.config.firewall_backend == "mock":
             return None
         return None
 
     def _unblock_cmd(self, ip: str) -> Optional[list[str]]:
-        if self.config.fw_backend == "windows":
+        if self.config.firewall_backend == "windows":
             return ["netsh", "advfirewall", "firewall", "delete", "rule", f"name=MorphIQ-Block-{ip}"]
-        elif self.config.fw_backend == "iptables":
+        elif self.config.firewall_backend == "iptables":
             return ["iptables", "-D", "INPUT", "-s", ip, "-j", "DROP"]
-        elif self.config.fw_backend == "ufw":
+        elif self.config.firewall_backend == "ufw":
             return ["ufw", "delete", "deny", "from", ip]
-        elif self.config.fw_backend == "mock":
+        elif self.config.firewall_backend == "mock":
             return None
         return None
 

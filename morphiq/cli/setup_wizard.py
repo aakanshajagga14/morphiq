@@ -53,18 +53,23 @@ def setup_interactive(config_path: str = "config.yaml") -> None:
         log_path = Prompt.ask("Enter full path to log file")
     else:
         log_path = detected_logs[int(choice) - 1]
-    config_dict["log_file"] = log_path
+    config_dict["log_file_path"] = log_path
     
-    format_preset = Prompt.ask("Log format preset", choices=["nginx", "iis", "apache", "json"], default="nginx")
-    config_dict["log_format"] = format_preset
+    format_preset = Prompt.ask(
+        "Log format preset",
+        choices=["nginx_combined", "apache_combined", "iis_w3c", "caddy_json"],
+        default="nginx_combined",
+    )
+    config_dict["log_format_preset"] = format_preset
+    config_dict["log_format_regex"] = ""
     
     console.print("\n[bold]Step 2: Effective IP Header[/bold]")
     is_proxied = Confirm.ask("Is your server behind a reverse proxy or CDN? (e.g. Cloudflare, Nginx proxy)")
     if is_proxied:
         ip_header = Prompt.ask("Which header contains the real client IP?", default="X-Forwarded-For")
-        config_dict["ip_header"] = ip_header
+        config_dict["effective_ip_header"] = ip_header
     else:
-        config_dict["ip_header"] = ""
+        config_dict["effective_ip_header"] = ""
         
     console.print("\n[bold]Step 3: LLM Configuration[/bold]")
     enable_llm = Confirm.ask("Enable LLM for advanced threat detection?", default=True)
@@ -102,7 +107,7 @@ def setup_interactive(config_path: str = "config.yaml") -> None:
     if extra_ips:
         for ip in extra_ips.split(","):
             wl.add(ip.strip())
-    config_dict["whitelist_ips"] = list(wl)
+    config_dict["whitelist"] = sorted(wl)
     
     console.print("\n[bold]Step 5: Firewall Backend[/bold]")
     suggested_backend = "windows" if os.name == 'nt' else "iptables"
@@ -128,25 +133,20 @@ def setup_interactive(config_path: str = "config.yaml") -> None:
         config_dict["dashboard_host"] = "127.0.0.1"
         
     config_dict["db_path"] = "morphiq.db"
-    config_dict["pid_file"] = "morphiq.pid"
+    config_dict["pid_file_path"] = "morphiq.pid"
     config_dict["morphiq_log_file"] = "logs/morphiq.log"
     config_dict["log_level"] = "INFO"
     config_dict["queue_maxsize"] = 10000
     config_dict["anomaly_threshold"] = 0.85
-    config_dict["ban_duration_seconds"] = 3600
-    config_dict["cooldown_seconds"] = 60
+    config_dict["default_ban_duration_s"] = 3600
     
     patterns = [
-        {"name": "SQL Injection", "regex": r"(?i)(union\s+select|select\s+.*\s+from|insert\s+into\s+.*\s+values|update\s+.*\s+set|delete\s+from|drop\s+table|;\s*--)"},
-        {"name": "Cross-Site Scripting", "regex": r"(?i)(<script.*?>.*?</script>|javascript:|onerror\s*=|onload\s*=)"},
-        {"name": "Path Traversal", "regex": r"(?i)(\.\./\.\./|\.\.\\\.\.\\|%2e%2e%2f|%2e%2e/|\.\.%2f|%2e%2e%5c)"},
-        {"name": "Command Injection", "regex": r"(?i)(;\s*(ls|cat|id|whoami|pwd|wget|curl|nc|bash|sh|cmd|powershell))"},
-        {"name": "Remote File Inclusion", "regex": r"(?i)(http(s)?://.*\.(txt|php|txt\?|php\?))"},
-        {"name": "Local File Inclusion", "regex": r"(?i)(/etc/passwd|/etc/shadow|/etc/hosts|c:\\windows\\system32|c:\\boot\.ini)"},
-        {"name": "Malicious User Agent", "regex": r"(?i)(nikto|sqlmap|nmap|dirb|dirbuster|wpscan|masscan|zgrab)"},
-        {"name": "Suspicious Request Method", "regex": r"(?i)(PUT|DELETE|TRACE|TRACK|CONNECT)"},
-        {"name": "Known Exploit Payload", "regex": r"(?i)(jndi:ldap|jndi:rmi|\$\{jndi:)"},
-        {"name": "PHP Code Injection", "regex": r"(?i)(<\?php|eval\(|base64_decode\(|system\(|exec\()"}
+        {"name": "SQL Injection", "field": "path", "pattern": r"(union\s+select|select\s+.*\s+from|drop\s+table|;\s*--)", "description": "Common SQL injection tokens."},
+        {"name": "Cross-Site Scripting", "field": "path", "pattern": r"(<script|javascript:|onerror\s*=|onload\s*=)", "description": "Common script-injection tokens."},
+        {"name": "Path Traversal", "field": "path", "pattern": r"(\.\./|%2e%2e%2f|%2e%2e/|%2e%2e%5c)", "description": "Parent-directory traversal attempts."},
+        {"name": "Command Injection", "field": "path", "pattern": r"(;\s*(ls|cat|id|whoami|wget|curl|bash|sh|cmd|powershell))", "description": "Common shell command injection tokens."},
+        {"name": "Malicious User Agent", "field": "user_agent", "pattern": r"(nikto|sqlmap|nmap|dirbuster|wpscan|masscan|zgrab)", "description": "Known offensive scanner user agents."},
+        {"name": "Suspicious Request Method", "field": "method", "pattern": r"(TRACE|TRACK|CONNECT)", "description": "Rarely required HTTP methods."},
     ]
     config_dict["heuristic_patterns"] = patterns
 

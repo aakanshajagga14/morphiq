@@ -1,43 +1,56 @@
-log_file: C:\inetpub\logs\LogFiles\W3SVC1\u_ex*.log
-log_format: json
-ip_header: y
-llm_enabled: true
-llm_model_path: e
-whitelist_ips:
-- 192.168.1.8
-- ::1
-- e
-- 127.0.0.1
+# Safe local/demo configuration. Replace log_file_path before production use.
+log_file_path: demo_access.log
+log_format_preset: nginx_combined
+log_format_regex: ""
+effective_ip_header: X-Forwarded-For
+
 firewall_backend: mock
-dashboard_enabled: true
-dashboard_port: 8080
-dashboard_host: 127.0.0.1
+whitelist:
+  - 127.0.0.1
+  - "::1"
+
+anomaly_threshold: 0.3
+max_escalation_rate: 10
+min_training_samples: 200
+base_model_path: data/base_model.joblib
+isolation_forest_model_path: data/if_model.joblib
+
+llm_enabled: false
+llm_base_url: http://127.0.0.1:1234/v1
+llm_model_path: models/model.gguf
+llm_timeout_s: 30
+llm_max_tokens: 256
+llm_n_ctx: 2048
+llm_n_threads: 4
+max_traffic_history_context: 20
+
+default_ban_duration_s: 3600
 db_path: morphiq.db
-pid_file: morphiq.pid
+traffic_retention_s: 86400
+pid_file_path: morphiq.pid
 morphiq_log_file: logs/morphiq.log
 log_level: INFO
-queue_maxsize: 10000
-anomaly_threshold: 0.85
-ban_duration_seconds: 3600
-cooldown_seconds: 60
+
+queue_maxsize: 1000
+config_reload_debounce_s: 5
+poll_interval_s: 60
+probe_window_s: 300
+probe_threshold: 15
+
+dashboard_enabled: true
+dashboard_host: 127.0.0.1
+dashboard_port: 7373
+
 heuristic_patterns:
-- name: SQL Injection
-  regex: (?i)(union\s+select|select\s+.*\s+from|insert\s+into\s+.*\s+values|update\s+.*\s+set|delete\s+from|drop\s+table|;\s*--)
-- name: Cross-Site Scripting
-  regex: (?i)(<script.*?>.*?</script>|javascript:|onerror\s*=|onload\s*=)
-- name: Path Traversal
-  regex: (?i)(\.\./\.\./|\.\.\\\.\.\\|%2e%2e%2f|%2e%2e/|\.\.%2f|%2e%2e%5c)
-- name: Command Injection
-  regex: (?i)(;\s*(ls|cat|id|whoami|pwd|wget|curl|nc|bash|sh|cmd|powershell))
-- name: Remote File Inclusion
-  regex: (?i)(http(s)?://.*\.(txt|php|txt\?|php\?))
-- name: Local File Inclusion
-  regex: (?i)(/etc/passwd|/etc/shadow|/etc/hosts|c:\\windows\\system32|c:\\boot\.ini)
-- name: Malicious User Agent
-  regex: (?i)(nikto|sqlmap|nmap|dirb|dirbuster|wpscan|masscan|zgrab)
-- name: Suspicious Request Method
-  regex: (?i)(PUT|DELETE|TRACE|TRACK|CONNECT)
-- name: Known Exploit Payload
-  regex: (?i)(jndi:ldap|jndi:rmi|\$\{jndi:)
-- name: PHP Code Injection
-  regex: (?i)(<\?php|eval\(|base64_decode\(|system\(|exec\()
+  - name: SQL injection
+    field: path
+    pattern: '(union\s+select|select\s+.*\s+from|drop\s+table|;\s*--)'
+    description: Common SQL injection tokens in the request path.
+  - name: Cross-site scripting
+    field: path
+    pattern: '(<script|javascript:|onerror\s*=|onload\s*=)'
+    description: Common browser script-injection tokens.
+  - name: Path traversal
+    field: path
+    pattern: '(\.\./|%2e%2e%2f|%2e%2e/|%2e%2e%5c)'
+    description: Parent-directory traversal attempts.

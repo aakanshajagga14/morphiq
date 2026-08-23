@@ -1,69 +1,158 @@
-# MorphIQ IPS
+# MorphIQ
 
-**MorphIQ IPS** is an AI-powered Intrusion Prevention System (IPS) that acts as a highly intelligent firewall and threat detection engine. It monitors web server logs in real-time to detect, analyze, and automatically block malicious traffic.
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Status: Alpha](https://img.shields.io/badge/status-alpha-orange.svg)](#project-status)
 
-Instead of relying solely on static rules like traditional tools, MorphIQ combines heuristic pattern matching with Machine Learning (Anomaly Detection) and Local Large Language Models (LLMs) to make context-aware security decisions.
+MorphIQ is a local-first, AI-assisted intrusion prevention system for web servers. It tails access logs, filters known attack patterns, scores anomalous requests, and can ask a local language model for a final threat assessment before applying a firewall rule.
 
-## 🌟 Key Features
+> [!IMPORTANT]
+> MorphIQ is alpha software. Start with the `mock` firewall backend, review its decisions, and test in a non-production environment before granting firewall privileges.
 
-* **Real-time Log Monitoring**: Continuously tails web server logs (Nginx, Apache, IIS, etc.) to evaluate incoming requests.
-* **Multi-Layered Threat Detection**:
-  * **Layer 1 - Heuristics**: Instantly flags known attack signatures like SQL Injection (SQLi), Cross-Site Scripting (XSS), Path Traversal, and Command Injection.
-  * **Layer 2 - Anomaly Detection**: Uses an Isolation Forest machine learning model to detect unusual traffic patterns based on request frequency, path lengths, and query entropy.
-  * **Layer 3 - LLM Threat Assessment**: Suspicious requests are escalated to a local LLM (like Gemma or Llama 3 running via LM Studio). The LLM acts as an AI security analyst, reviewing the request context, traffic history, and payload to determine if it's a true threat or a false positive.
-* **Automated Banning**: Automatically bans malicious IPs via the configured firewall backend (e.g., Windows Firewall via `netsh`) when a threat is confirmed.
-* **Interactive Web Dashboard**: A modern, real-time React dashboard to view traffic statistics, active bans, and the AI's threat audit logs.
-* **Fully Configurable**: Easily tweak thresholds, LLM endpoints, and detection rules via `config.yaml`.
-* **Privacy First**: All data is processed locally.
+## Why MorphIQ
 
-## 🏗 Architecture
+- **Layered detection** — heuristic signatures, Isolation Forest anomaly scoring, and optional LLM assessment.
+- **Local-first operation** — logs, models, audit records, and decisions remain on the host.
+- **Automated response** — supports Windows Firewall, `iptables`, `ufw`, and a safe mock backend.
+- **Operational visibility** — SQLite-backed audit history, active-ban management, and a live dashboard.
+- **Configurable deployment** — YAML configuration, environment override, and an interactive setup command.
 
-MorphIQ is composed of two main components:
-1. **The Daemon (`morphiq start`)**: A background process that tails logs, processes requests through the 3-stage detection pipeline, queries the local LLM, manages the SQLite database (`morphiq.db`), and issues firewall blocks.
-2. **The Dashboard**: A web interface served by an `aiohttp` server running on port 3000, providing real-time insights into the IPS's operations.
+## Architecture
 
-## 🚀 Getting Started
+```mermaid
+flowchart LR
+    A[Web access logs] --> B[Log tailer]
+    B --> C[Heuristic filter]
+    C --> D[Anomaly detector]
+    D --> E[Optional local LLM agent]
+    E --> F[Firewall controller]
+    C --> G[(SQLite audit store)]
+    D --> G
+    E --> G
+    G --> H[Web dashboard and CLI]
+```
 
-### Prerequisites
-* Python 3.11+
-* (Optional) **LM Studio** or another local LLM provider exposing an OpenAI-compatible API on port 1234.
+MorphIQ supports Nginx combined, Apache combined, IIS W3C, Caddy JSON, and custom regex log formats.
 
-### Configuration
-All settings are managed in `config.yaml` located in the root directory.
+## Quick start
 
-Key configurations to check:
-* `log_file_path`: Path to the web server log file you want to monitor.
-* `llm_enabled`: Set to `true` to enable AI analysis, or `false` to run in heuristic-only mode.
-* `llm_base_url`: URL of your local LLM server (default is `http://localhost:1234/v1` for LM Studio).
-* `dashboard_port`: Port for the web dashboard (default 3000).
+### Requirements
 
-### Running MorphIQ
+- Python 3.11 or newer
+- Windows, Linux, or macOS for mock-mode development
+- Windows or Linux for firewall enforcement
+- Optional: an OpenAI-compatible local model server, such as LM Studio
 
-MorphIQ includes a CLI tool to manage the daemon process.
+### Install
 
 ```bash
-# Start the MorphIQ daemon and dashboard in the background
-morphiq start
+git clone https://github.com/aakanshajagga14/morphiq.git
+cd morphiq
+python -m venv .venv
+```
 
-# Stop the running MorphIQ daemon
+Activate the environment:
+
+```bash
+# macOS/Linux
+source .venv/bin/activate
+
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+```
+
+Install MorphIQ:
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install -e .
+```
+
+### Configure
+
+The committed [`config.yaml`](config.yaml) is a safe demo configuration. It reads `demo_access.log`, disables the LLM, and uses the mock firewall backend.
+
+You can also launch the setup wizard:
+
+```bash
+morphiq setup
+```
+
+At minimum, review these values before running against real traffic:
+
+```yaml
+log_file_path: /var/log/nginx/access.log
+log_format_preset: nginx_combined
+firewall_backend: mock
+whitelist:
+  - 127.0.0.1
+  - "::1"
+llm_enabled: false
+dashboard_enabled: true
+dashboard_host: 127.0.0.1
+dashboard_port: 7373
+```
+
+Use `MORPHIQ_CONFIG` or `--config` to select another configuration file:
+
+```bash
+MORPHIQ_CONFIG=/etc/morphiq/config.yaml morphiq status
+morphiq start --config ./config.yaml
+```
+
+### Run
+
+```bash
+morphiq start
+morphiq status
+morphiq dashboard
 morphiq stop
 ```
 
-Once started, the dashboard will be available at: **http://127.0.0.1:3000**
+With the default configuration, open [http://127.0.0.1:7373](http://127.0.0.1:7373).
 
-## 🤖 Using the AI (Local LLM)
-If you want to use the AI analysis feature:
-1. Open **LM Studio**.
-2. Load a fast, instruct-tuned model (e.g., Gemma 2B or Llama 3 8B).
-3. Start the Local Server on port `1234`.
-4. Ensure `llm_enabled: true` in your `config.yaml`.
-5. Run `morphiq start`.
+## CLI
 
-*Note: If you experience crashes with specific models (like Gemma 4) in LM Studio, try reducing `Parallel Requests` to `1` and lowering the `Context Length` to `4096`, or switch to a more stable model.*
+| Command | Purpose |
+| --- | --- |
+| `morphiq setup` | Create a configuration interactively. |
+| `morphiq start` | Start the daemon in the background. |
+| `morphiq stop` | Stop the daemon. |
+| `morphiq status` | Show daemon and pipeline statistics. |
+| `morphiq audit` | Display recent threat decisions. |
+| `morphiq ban list` | List active bans. |
+| `morphiq unban <ip>` | Remove an active ban. |
+| `morphiq whitelist check <ip>` | Check whether an address is protected. |
+| `morphiq feedback <ip> <fp|tp>` | Record false-positive or true-positive feedback. |
+| `morphiq retrain` | Retrain the anomaly model from stored traffic. |
+| `morphiq dashboard` | Open the configured dashboard. |
 
-## 🧪 Demo Mode
-To test MorphIQ without a real web server, you can point `log_file_path` to `demo_access.log` and use a script to append simulated malicious and benign requests to the log file. MorphIQ will immediately pick them up and analyze them on the dashboard!
+Run `morphiq --help` or `morphiq <command> --help` for the complete command reference.
+
+## Local LLM integration
+
+MorphIQ can connect to a local OpenAI-compatible endpoint. To enable it:
+
+1. Start the model server and load an instruction-tuned model.
+2. Set `llm_enabled: true`.
+3. Set `llm_base_url`, `llm_model_path`, and the context/token limits in `config.yaml`.
+4. Restart MorphIQ and review decisions in the audit log.
+
+The LLM layer is optional. If it is disabled or unavailable, MorphIQ continues in heuristic/anomaly mode.
+
+## Development
+
+```bash
+python -m pip install -e ".[dev]"
+pytest
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution workflow and [SECURITY.md](SECURITY.md) for responsible vulnerability reporting.
+
+## Project status
+
+MorphIQ is under active development. Interfaces, configuration fields, and detection behavior may change before a stable release. It should be treated as an additional security control—not a replacement for patching, least privilege, network segmentation, or established monitoring.
 
 ## License
 
-MIT License. See `LICENSE` for details.
+MorphIQ is available under the [MIT License](LICENSE).

@@ -1,2 +1,0 @@
-[console_scripts]
-morphiq = morphiq.cli.main:app
